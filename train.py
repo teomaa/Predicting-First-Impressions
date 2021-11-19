@@ -203,10 +203,6 @@ def train(Xtrain, ytrain, Xtrain_norm, ytrain_norm, Xvalidate, yvalidate, space)
 
 
 if __name__ == '__main__':
-
-    import os
-    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
     import numpy as np
     import sys
     import json
