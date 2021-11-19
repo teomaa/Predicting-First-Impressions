@@ -64,6 +64,7 @@ def horizontalFlip(originalImage, space):
 
 def applyRandomAugmentation(originalImage, space):
     from random import uniform
+    import numpy as np
 
     should_run = lambda pctprob: (uniform(0, 99)) <= pctprob
 
@@ -72,4 +73,5 @@ def applyRandomAugmentation(originalImage, space):
         if should_run(space[fn.__name__ + '_pctprob']):
             originalImage = fn(originalImage, space)
 
+    originalImage = originalImage[:, :, np.newaxis]
     return originalImage
