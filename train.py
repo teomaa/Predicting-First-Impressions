@@ -222,15 +222,9 @@ if __name__ == '__main__':
     # SPACE_FILE = 'Spaces/' + ATTRIBUTE + '/' + ATTRIBUTE + '_space.json'
     MODEL_PATH = 'Models/' + ATTRIBUTE + '.h5'
 
-    # print('Loading Train Data')
-    # Xtrain, ytrain = load_images('./Images', f'./Annotations/{ATTRIBUTE}/test.txt', f'./Annotations/{ATTRIBUTE}/annotations.csv')
-    # print('Loading Train Data Again')
-    # Xtrain_norm, ytrain_norm = load_images('./Images', f'./Annotations/{ATTRIBUTE}/test.txt', f'./Annotations/{ATTRIBUTE}/annotations.csv', normalize=True, rollaxis=True)
-    # print('Loading Validation Data')
-    # Xvalidate, yvalidate = load_images('./Images', f'./Annotations/{ATTRIBUTE}/validate.txt', f'./Annotations/{ATTRIBUTE}/annotations.csv', normalize=True, rollaxis=True)
-
     import data_prep
     X, y, labels = data_prep.load_cleaned_data()
+    X = X.reshape((X.shape[0], X.shape[1], X.shape[2], 1))
 
     Xtrain, Xtest, ytrain, ytest = train_test_split(X, y[:,0], test_size=0.1)
     Xtest, Xvalidate, ytest, yvalidate = train_test_split(Xtest, ytest, test_size=0.5)
