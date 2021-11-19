@@ -11,6 +11,7 @@ from random import uniform
 import augmentation
 from keras.models import Sequential
 from keras.layers import Convolution2D, Dense, Flatten, MaxPooling2D, Dropout
+from sklearn.model_selection import train_test_split
 
 
 def parse_csv(CSV):
@@ -58,7 +59,7 @@ def load_images(img_dir, img_csv, annotations_csv, normalize=False, rollaxis=Fal
             if normalize: img = img / 255.0
             if rollaxis: img.shape = (1,150,130)
             X.append(img)
-            y.append(annotations.loc[annotations.iloc[:,0] == row[0]]) # yuck...
+            y.append(annotations.loc[annotations.iloc[:,0] == row[0]].values) # yuck...
     x, y = np.array(X), np.array(y)
     print(f'Loaded {len(y)} images into memory')
     return x, y
@@ -107,29 +108,29 @@ def vgg_variant(space):
     model = Sequential()
 
     for outputs in space['conv0filters']:
-        model.add(Convolution2D(outputs, 3, 3, border_mode='same', input_shape=(1, 150, 130), init='glorot_uniform',
-                                bias=True, activation='relu'))
-        model.add(Convolution2D(outputs, 3, 3, border_mode='same', bias=True, activation='relu'))
+        model.add(Convolution2D(outputs, (3, 3), padding='same', input_shape=(150, 130, 1), kernel_initializer='glorot_uniform',
+                                activation='relu'))
+        model.add(Convolution2D(outputs, (3, 3), padding='same', activation='relu'))
         model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
 
     for outputs in space['conv1filters']:
-        model.add(Convolution2D(outputs, 3, 3, border_mode='same', init='glorot_uniform', bias=True, activation='relu'))
-        model.add(Convolution2D(outputs, 3, 3, border_mode='same', init='glorot_uniform', bias=True, activation='relu'))
+        model.add(Convolution2D(outputs, (3, 3), padding='same', kernel_initializer='glorot_uniform', activation='relu'))
+        model.add(Convolution2D(outputs, (3, 3), padding='same', kernel_initializer='glorot_uniform', activation='relu'))
         model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
 
     for outputs in space['conv2filters']:
-        model.add(Convolution2D(outputs, 3, 3, border_mode='same', init='glorot_uniform', bias=True, activation='relu'))
-        model.add(Convolution2D(outputs, 3, 3, border_mode='same', init='glorot_uniform', bias=True, activation='relu'))
-        model.add(Convolution2D(outputs, 3, 3, border_mode='same', init='glorot_uniform', bias=True, activation='relu'))
+        model.add(Convolution2D(outputs, (3, 3), padding='same', kernel_initializer='glorot_uniform', activation='relu'))
+        model.add(Convolution2D(outputs, (3, 3), padding='same', kernel_initializer='glorot_uniform', activation='relu'))
+        model.add(Convolution2D(outputs, (3, 3), padding='same', kernel_initializer='glorot_uniform', activation='relu'))
         model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
 
     model.add(Flatten())
 
     for _ in range(int(space['num_fc'])):
-        model.add(Dense(int(space['fcoutput']), init='glorot_uniform', bias=True, activation='relu'))
+        model.add(Dense(int(space['fcoutput']), kernel_initializer='glorot_uniform', activation='relu'))
         model.add(Dropout(space['dropout']))
 
-    model.add(Dense(1, init='glorot_uniform', bias=True))
+    model.add(Dense(1, kernel_initializer='glorot_uniform'))
 
     return model
 
@@ -193,14 +194,18 @@ def train(Xtrain, ytrain, Xtrain_norm, ytrain_norm, Xvalidate, yvalidate, space)
     rmsprop = RMSprop(lr=lr, rho=0.9, epsilon=1e-08)
     model.compile(loss='mean_squared_error', optimizer=rmsprop)
     monitor = CorrelationEarlyStopping(monitor='validate', patience=6, delta=0.01)
-    gen = data_generator(Xtrain, ytrain, batch_size=space['batch_size'], space=space,
-                         weighted_sampling=space['weighted_sampling'], augment=space['augment'],
-                         sampling_factor=space['sampling_factor'], sampling_intercept=space['sampling_intercept'])
-    model.fit_generator(gen, space['samples_per_epoch'], 50, 1, [monitor], (Xvalidate, yvalidate))
+    # gen = data_generator(Xtrain, ytrain, batch_size=space['batch_size'], space=space,
+    #                      weighted_sampling=space['weighted_sampling'], augment=space['augment'],
+    #                      sampling_factor=space['sampling_factor'], sampling_intercept=space['sampling_intercept'])
+    # model.fit_generator(gen, space['samples_per_epoch'], 50, 1, [monitor], (Xvalidate, yvalidate))
+    model.fit(Xtrain, ytrain, space['samples_per_epoch'], 50, 1, [monitor], validation_data=(Xvalidate, yvalidate))
     return monitor.best_model, monitor.rvalues
 
 
 if __name__ == '__main__':
+
+    import os
+    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
     import numpy as np
     import sys
@@ -217,15 +222,23 @@ if __name__ == '__main__':
     # SPACE_FILE = 'Spaces/' + ATTRIBUTE + '/' + ATTRIBUTE + '_space.json'
     MODEL_PATH = 'Models/' + ATTRIBUTE + '.h5'
 
-    print('Loading Train Data')
-    # Xtrain, ytrain = load_data_into_memory(DIR=TRAIN_DIR, ANNO=ANNO, ATTRIBUTE=ATTRIBUTE, normalize=False, rollaxis=False)
-    Xtrain, ytrain = load_images('./Images', f'./Annotations/{ATTRIBUTE}/test.txt', f'./Annotations/{ATTRIBUTE}/annotations.csv')
-    print('Loading Train Data Again')
-    Xtrain_norm, ytrain_norm = load_images('./Images', f'./Annotations/{ATTRIBUTE}/test.txt', f'./Annotations/{ATTRIBUTE}/annotations.csv', normalize=True, rollaxis=True)
-    # Xtrain_norm, ytrain_norm = load_data_into_memory(DIR=TRAIN_DIR, ANNO=ANNO, ATTRIBUTE=ATTRIBUTE, normalize=True, rollaxis=True)
-    print('Loading Validation Data')
-    Xvalidate, yvalidate = load_images('./Images', f'./Annotations/{ATTRIBUTE}/validate.txt', f'./Annotations/{ATTRIBUTE}/annotations.csv', normalize=True, rollaxis=True)
-    # Xvalidate, yvalidate = load_data_into_memory(DIR=VAL_DIR, ANNO=ANNO, ATTRIBUTE=ATTRIBUTE, normalize=True, rollaxis=True)
+    # print('Loading Train Data')
+    # Xtrain, ytrain = load_images('./Images', f'./Annotations/{ATTRIBUTE}/test.txt', f'./Annotations/{ATTRIBUTE}/annotations.csv')
+    # print('Loading Train Data Again')
+    # Xtrain_norm, ytrain_norm = load_images('./Images', f'./Annotations/{ATTRIBUTE}/test.txt', f'./Annotations/{ATTRIBUTE}/annotations.csv', normalize=True, rollaxis=True)
+    # print('Loading Validation Data')
+    # Xvalidate, yvalidate = load_images('./Images', f'./Annotations/{ATTRIBUTE}/validate.txt', f'./Annotations/{ATTRIBUTE}/annotations.csv', normalize=True, rollaxis=True)
+
+    import data_prep
+    X, y, labels = data_prep.load_cleaned_data()
+
+    Xtrain, Xtest, ytrain, ytest = train_test_split(X, y[:,0], test_size=0.1)
+    Xtest, Xvalidate, ytest, yvalidate = train_test_split(Xtest, ytest, test_size=0.5)
+
+    # if normalize: img = img / 255.0
+    # if rollaxis: img.shape = (1,150,130)
+    Xtrain_norm = Xtrain / 255.0
+    ytrain_norm = ytrain
 
     with open(SPACE_FILE, 'r') as f:
         opt_params = json.load(f)
