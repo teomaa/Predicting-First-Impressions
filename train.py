@@ -19,7 +19,7 @@ from sklearn.model_selection import train_test_split
 # https://github.com/keras-team/keras/issues/13684#issuecomment-595054461
 
 import tensorflow as tf
-import keras.backend.tensorflow_backend as tfback
+import tensorflow.python.keras.backend as tfback
 print("tf.__version__ is", tf.__version__)
 print("tf.keras.__version__ is:", tf.keras.__version__)
 
@@ -227,8 +227,10 @@ def train(Xtrain, ytrain, Xtrain_norm, ytrain_norm, Xvalidate, yvalidate, space)
                          sampling_factor=space['sampling_factor'], sampling_intercept=space['sampling_intercept'])
     #model.fit_generator(gen, space['samples_per_epoch'], 50, 1, [monitor], (Xvalidate, yvalidate))
     model.fit(gen, epochs=50, steps_per_epoch=1)
+    print(monitor.best_model)
     # model.fit(Xtrain, ytrain, space['samples_per_epoch'], 50, 1, [monitor], validation_data=(Xvalidate, yvalidate))
-    return monitor.best_model, monitor.rvalues
+    # return monitor.best_model, monitor.rvalues
+    return model, monitor.rvalues
 
 
 if __name__ == '__main__':
@@ -236,7 +238,7 @@ if __name__ == '__main__':
     import sys
     import json
 
-    ATTRIBUTE = 'IQ'
+    ATTRIBUTE = 'Dominance'
 
     ANNO = 'Annotations/' + ATTRIBUTE + '/annotations.csv'
     TRAIN_DIR = 'Images/' + ATTRIBUTE + '/Train/'
@@ -262,5 +264,6 @@ if __name__ == '__main__':
     with open(SPACE_FILE, 'r') as f:
         opt_params = json.load(f)
         model, results = train(Xtrain, ytrain, Xtrain_norm, ytrain_norm, Xvalidate, yvalidate, opt_params)
+        # print(model)
         if model is not None:
             model.save(MODEL_PATH)
